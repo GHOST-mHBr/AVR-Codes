@@ -1,7 +1,18 @@
-#pragma once
-#include <stdint.h>
+#include "seven_segment.hpp"
 
-uint8_t seven_segment_cc[] = {
+void fill_digits(uint8_t value, volatile uint8_t *const buffer, uint8_t buffer_size)
+{
+  uint8_t i = 0;
+  while (i < buffer_size)
+  {
+    buffer[buffer_size - i - 1] = value % 10;
+    value /= 10;
+    i++;
+  }
+}
+
+
+const uint8_t seven_segment_cc[] = {
     0b00111111, //0
     0b00000110, //1
     0b01011011, //2
@@ -20,7 +31,8 @@ uint8_t seven_segment_cc[] = {
     0b01110001  //F
 };
 
-uint8_t seven_segment_ca[] = {
+
+const uint8_t seven_segment_ca[] = {
     0b11000000, //0
     0b11111001, //1
     0b10100100, //2
