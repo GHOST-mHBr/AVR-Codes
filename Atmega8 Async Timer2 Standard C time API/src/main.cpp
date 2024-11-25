@@ -6,6 +6,8 @@
 #include <util/delay.h>
 #include <string.h>
 
+#define F_CPU 8000000UL
+
 #define SEV_DATA_PORT PORTD
 #define SEV_MUX_PORT PORTC
 #define SEV_MUX_PIN0 PINC0
@@ -80,8 +82,7 @@ void set_button_work()
 }
 
 // BLOCKING function that checks if a button is clicked
-uint8_t is_clicked(volatile uint8_t *pin_reg, uint8_t pin)
-{
+uint8_t is_clicked(volatile uint8_t *pin_reg, uint8_t pin){
   if (read_bit(*pin_reg, pin))
   {
     _delay_ms(200);
@@ -100,8 +101,8 @@ uint8_t is_clicked(volatile uint8_t *pin_reg, uint8_t pin)
  */
 void config_timer0()
 {
-  TCCR0 = 0;
-  TCCR0 = (1 << CS02); // Setting prescaler to clk_io/256
+  // TCCR0 = 0;
+  TCCR0 = (1 << CS01) | (1 << CS00); // Setting prescaler to clk_io/64
 }
 
 /**
@@ -112,7 +113,7 @@ void config_timer0()
 void config_timer2()
 {
   ASSR |= (1 << AS2);                 // Asynchronous mode selection
-  TCCR2 |= (1 << CS21) | (1 << CS20); // Set prescaler to CLK_ASYN/128 which results in 32768/(128*256)=1Hz
+  TCCR2 |= (1 << CS22) | (1 << CS20); // Set prescaler to CLK_ASYN/128 which results in 32768/(128*256)=1Hz
   while (!(bit_is_clear(ASSR, TCN2UB) && bit_is_clear(ASSR, TCR2UB)))
   {
   } // Recommended by data sheet to wait until changes get applied
@@ -133,7 +134,7 @@ void config_gpio()
   SEV_DATA_DDR = 0xFF;
   SEV_DATA_PORT = 0x00;
 
-  write_bit(SEV_DP_DDR, SEV_DP_PIN, 1);
+  // write_bit(SEV_DP_DDR, SEV_DP_PIN, 1);
 
   write_bit(KEYS_DDR, KEY_SET_PIN, 0);
   write_bit(KEYS_DDR, KEY_UP_PIN, 0);
@@ -157,13 +158,14 @@ void config_seven_segment()
 
 ISR(TIMER0_OVF_vect)
 {
+  // SEV_MUX_PORT = NO_DIGITS;
   main_seven_segment.digit_counter++;
   if (main_seven_segment.digit_counter > 3)
     main_seven_segment.digit_counter = 0;
 
   SEV_MUX_PORT = ~(1 << main_seven_segment.digit_counter);
   volatile uint8_t value = seven_segment_cc[main_seven_segment.values[main_seven_segment.digit_counter]];
-  value &= (read_bit(main_seven_segment.enabled_digits, main_seven_segment.digit_counter) ? 0xFF : 0x00);
+  value &= (read_bit(main_seven_segment.enabled_digits, main_seven_segment.digit_counter) ? 0x00 : 0xFF);
   write_bit(value, 7, read_bit(main_seven_segment.enabled_dots, main_seven_segment.digit_counter));
   SEV_DATA_PORT = value;
 }

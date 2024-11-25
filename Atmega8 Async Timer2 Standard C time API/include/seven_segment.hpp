@@ -11,9 +11,11 @@
 #define DIGIT_2 4
 #define DIGIT_3 8
 
-#define ALL_DIGITS 0x0F
-#define HOUR_DIGITS 0x03
-#define MINUTE_DIGITS 0x0C
+#define ALL_DIGITS 0x00
+#define NO_DIGITS 0x0F
+#define HOUR_DIGITS 0x0C
+#define MINUTE_DIGITS 0x03
+
 
 typedef struct SevSeg{
     volatile uint8_t values[4]{0};
