@@ -5,7 +5,6 @@
 #include <seven_segment.hpp>
 #include <util/delay.h>
 #include <string.h>
-#define F_CPU 8000000UL
 #include <common.hpp>
 
 #define SEV_DATA_PORT PORTD
@@ -38,6 +37,7 @@
 #define toggle_bit(byte, bit) read_bit((byte), (bit)) ? write_bit(byte, bit, 0) : write_bit(byte, bit, 1)
 
 volatile SevSeg main_seven_segment;
+volatile uint32_t second_quarters = 0;
 
 enum State
 {
@@ -85,8 +85,9 @@ void set_button_work()
 uint8_t is_clicked(volatile uint8_t *pin_reg, uint8_t pin){
   if (read_bit(*pin_reg, pin))
   {
-    _delay_ms(200);
-    while (read_bit(*pin_reg, pin))
+    _delay_ms(20);
+    uint32_t current_second_quarter = second_quarters;
+    while (read_bit(*pin_reg, pin) && (second_quarters - current_second_quarter) < 2)
     {
     } // Wait until the button gets released
     return true;
@@ -164,6 +165,10 @@ ISR(TIMER0_OVF_vect)
 
 ISR(TIMER2_OVF_vect, ISR_NAKED)
 {
+  second_quarters++;
+  if(second_quarters == 0xFFFFFFFF){
+    second_quarters = 0;
+  }
   timer_cnt++;
   if (timer_cnt > 3)
   {
