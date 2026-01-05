@@ -294,8 +294,9 @@ int main()
       current_time = time(NULL);
       hours.value = localtime(&current_time)->tm_hour;
       minutes.value = localtime(&current_time)->tm_min;
-      _delay_ms(500);
+      _delay_ms(50);
     }
+    _delay_ms(50);
 
     if (current_disp != NULL)
     {
