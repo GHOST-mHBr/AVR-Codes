@@ -5,8 +5,8 @@
 #include <seven_segment.hpp>
 #include <util/delay.h>
 #include <string.h>
-
 #define F_CPU 8000000UL
+#include <common.hpp>
 
 #define SEV_DATA_PORT PORTD
 #define SEV_MUX_PORT PORTC

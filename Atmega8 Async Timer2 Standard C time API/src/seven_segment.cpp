@@ -1,5 +1,5 @@
 #include "seven_segment.hpp"
-
+#include "common.hpp"
 void fill_digits(uint8_t value, volatile uint8_t *const buffer, uint8_t buffer_size)
 {
   uint8_t i = 0;
