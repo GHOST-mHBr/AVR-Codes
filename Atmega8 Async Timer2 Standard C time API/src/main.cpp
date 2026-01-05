@@ -159,15 +159,7 @@ void config_seven_segment()
 ISR(TIMER0_OVF_vect)
 {
   // SEV_MUX_PORT = NO_DIGITS;
-  main_seven_segment.digit_counter++;
-  if (main_seven_segment.digit_counter > 3)
-    main_seven_segment.digit_counter = 0;
-
-  SEV_MUX_PORT = ~(1 << main_seven_segment.digit_counter);
-  volatile uint8_t value = seven_segment_cc[main_seven_segment.values[main_seven_segment.digit_counter]];
-  value &= (read_bit(main_seven_segment.enabled_digits, main_seven_segment.digit_counter) ? 0x00 : 0xFF);
-  write_bit(value, 7, read_bit(main_seven_segment.enabled_dots, main_seven_segment.digit_counter));
-  SEV_DATA_PORT = value;
+  show_cc(&main_seven_segment, &SEV_DATA_PORT, &SEV_MUX_PORT);
 }
 
 ISR(TIMER2_OVF_vect, ISR_NAKED)

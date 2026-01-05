@@ -26,7 +26,10 @@ typedef struct SevSeg{
     volatile uint8_t digit_counter{0};
 }SevSeg;
 
-// volatile SevSeg main_seven_segment{0};
+void show_cc(volatile SevSeg* seven_segment, volatile uint8_t* output_port, volatile uint8_t* digit_selection_port);
+
+void show_ca(volatile SevSeg* seven_segment, volatile uint8_t* output_port, volatile uint8_t* digit_selection_port);
+
 
 extern void fill_digits(uint8_t value, volatile uint8_t *const buffer, uint8_t buffer_size);
 

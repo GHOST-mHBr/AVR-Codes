@@ -11,6 +11,31 @@ void fill_digits(uint8_t value, volatile uint8_t *const buffer, uint8_t buffer_s
   }
 }
 
+void show_cc(volatile SevSeg* seven_segment, volatile uint8_t* output_port, volatile uint8_t* digit_selection_port){
+
+  seven_segment->digit_counter++;
+  if (seven_segment->digit_counter > 3)
+    seven_segment->digit_counter = 0;
+
+  (*digit_selection_port) = ~(1 << seven_segment->digit_counter);
+  volatile uint8_t value = seven_segment_cc[seven_segment->values[seven_segment->digit_counter]];
+  value &= read_bit(seven_segment->enabled_digits, seven_segment->digit_counter) ? 0x00 : 0xFF;
+  write_bit(value, 7, read_bit(seven_segment->enabled_dots, seven_segment->digit_counter));
+  (*output_port) = value;
+}
+
+void show_ca(volatile SevSeg* seven_segment, volatile uint8_t* output_port, volatile uint8_t* digit_selection_port){
+
+  seven_segment->digit_counter++;
+  if (seven_segment->digit_counter > 3)
+    seven_segment->digit_counter = 0;
+
+  (*output_port) = (1 << seven_segment->digit_counter);
+  volatile uint8_t value = seven_segment_ca[seven_segment->values[seven_segment->digit_counter]];
+  value |= (read_bit(seven_segment->enabled_digits, seven_segment->digit_counter) ? 0x00 : 0xFF);
+  write_bit(value, 7, !read_bit(seven_segment->enabled_dots, seven_segment->digit_counter));
+  (*output_port) = value;
+}
 
 const uint8_t seven_segment_cc[] = {
     0b00111111, //0
