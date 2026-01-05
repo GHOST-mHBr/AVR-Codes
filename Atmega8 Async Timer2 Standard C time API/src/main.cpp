@@ -33,7 +33,7 @@
 volatile SevSeg main_seven_segment;
 volatile uint32_t second_quarters = 0;
 
-enum State
+enum  __attribute__((packed)) State
 {
   NORMAL,
   SET_CLOCK_HOUR,
