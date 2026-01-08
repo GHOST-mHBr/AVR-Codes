@@ -33,7 +33,7 @@
 volatile SevSeg main_seven_segment;
 volatile uint32_t second_quarters = 0;
 
-enum  __attribute__((packed)) State
+enum __attribute__((packed)) State
 {
   NORMAL,
   SET_CLOCK_HOUR,
@@ -42,6 +42,12 @@ enum  __attribute__((packed)) State
   SET_ALARM_MINUTE,
   // END_SETTING
 } programState;
+
+volatile time_t epoch = 0;
+
+volatile uint8_t seconds_ = 0;
+volatile uint8_t minutes_ = 0;
+volatile uint8_t hours_ = 0;
 
 struct hour_of_day
 {
@@ -66,6 +72,15 @@ struct seven_segment_value
 
 volatile uint8_t timer_cnt = 0;
 
+void epoch_to_time(time_t epoch_, volatile uint8_t* seconds, volatile uint8_t* minutes, volatile uint8_t* hours){
+  epoch_ = epoch_ % ONE_DAY;
+  *hours = epoch_/ONE_HOUR;
+  epoch_ = epoch_-(*hours)*ONE_HOUR;
+  
+  *minutes = epoch_/ONE_MINUTE;
+  *seconds = epoch_ - (*minutes)*ONE_MINUTE;
+}
+
 void set_button_work()
 {
   programState = (State)(programState + 1);
@@ -76,10 +91,11 @@ void set_button_work()
 }
 
 // BLOCKING function that checks if a button is clicked
-uint8_t is_clicked(volatile uint8_t *pin_reg, uint8_t pin){
+uint8_t is_clicked(volatile uint8_t *pin_reg, uint8_t pin)
+{
   if (read_bit(*pin_reg, pin))
   {
-    _delay_ms(20);
+    _delay_ms(100);
     uint32_t current_second_quarter = second_quarters;
     while (read_bit(*pin_reg, pin) && (second_quarters - current_second_quarter) < 2)
     {
@@ -107,8 +123,8 @@ void config_timer0()
  */
 void config_timer2()
 {
-  ASSR |= (1 << AS2);                 // Asynchronous mode selection
-  TCCR2 |= (1 << CS22) | (1 << CS20); // Set prescaler to CLK_ASYN/128 which results in 32768/(128*256)=1Hz
+  ASSR = (1 << AS2);                 // Asynchronous mode selection
+  TCCR2 = (1 << CS22) | (1 << CS20); // Set prescaler to CLK_ASYN/128 which results in 32768/(128*256)=1Hz
   while (!(bit_is_clear(ASSR, TCN2UB) && bit_is_clear(ASSR, TCR2UB)))
   {
   } // Recommended by data sheet to wait until changes get applied
@@ -139,9 +155,8 @@ void config_gpio()
 
 void config_time()
 {
-  set_system_time(CURRENT_TIME - UNIX_OFFSET); // CURRENT_TIME get defined at compile time using the -D flag. Check platformio.ini file
-  set_zone(3.5 * ONE_HOUR);
-  set_position(35.7219 * ONE_DEGREE, 51.3347 * ONE_DEGREE);
+  epoch = CURRENT_TIME;
+  epoch_to_time(epoch, &seconds_, &minutes_, &hours_);
 }
 
 void config_seven_segment()
@@ -157,19 +172,22 @@ ISR(TIMER0_OVF_vect)
   show_cc(&main_seven_segment, &SEV_DATA_PORT, &SEV_MUX_PORT);
 }
 
-ISR(TIMER2_OVF_vect, ISR_NAKED)
+ISR(TIMER2_OVF_vect)
 {
-  second_quarters++;
-  if(second_quarters == 0xFFFFFFFF){
-    second_quarters = 0;
+  seconds_++;
+  if(seconds_ > 59){
+    seconds_ = 0;
+    minutes_++;
   }
-  timer_cnt++;
-  if (timer_cnt > 3)
-  {
-    timer_cnt = 0;
-    system_tick();
-    toggle_bit(main_seven_segment.enabled_dots, 1);
+  if(minutes_ > 59){
+    minutes_ = 0;
+    hours_++;
   }
+  if(hours_ > 23){
+    hours_ = 0;
+  }
+
+  toggle_bit(main_seven_segment.enabled_dots, 1);
 
   // Check for hours blinking
   if (main_seven_segment.hours_blink)
@@ -197,11 +215,13 @@ ISR(TIMER2_OVF_vect, ISR_NAKED)
     }
   }
 
-  reti();
+  TIFR |= (1<<TOV2);
+  // reti();
 }
 
 int main()
 {
+  _delay_ms(2000);
   cli();
   config_timer0();
   config_timer2();
@@ -212,22 +232,16 @@ int main()
   programState = NORMAL;
   sei(); // Enabling interrupts
 
-  time_t current_time = 0;
-  volatile struct hour_of_day hours;
-  volatile struct hour_of_day prev_hours;
-  volatile struct min_of_hour minutes;
-  volatile struct min_of_hour prev_minutes;
-  volatile struct hour_of_day alarm_hour;
-  volatile struct min_of_hour alarm_minute;
-  volatile struct seven_segment_value *seven_disp01 = NULL;
-  volatile struct seven_segment_value *seven_disp23 = NULL;
-  volatile struct seven_segment_value **current_disp = NULL;
-  volatile time_t prev_time = 0;
-  // seven_disp01->value = 10;
-  // seven_disp23->value = 20;
+  struct hour_of_day hours;
+  struct min_of_hour minutes;
+  struct hour_of_day alarm_hour;
+  struct min_of_hour alarm_minute;
+  struct seven_segment_value *seven_disp01 = NULL;
+  struct seven_segment_value *seven_disp23 = NULL;
+  struct seven_segment_value **current_disp = NULL;
 
-  seven_disp01 = (volatile seven_segment_value *)&hours;
-  seven_disp23 = (volatile seven_segment_value *)&minutes;
+  seven_disp01 = ( seven_segment_value *)&hours;
+  seven_disp23 = ( seven_segment_value *)&minutes;
 
   while (1)
   {
@@ -239,63 +253,71 @@ int main()
       switch (programState)
       {
       case NORMAL:
-        seven_disp01 = (volatile seven_segment_value *)&hours;
-        seven_disp23 = (volatile seven_segment_value *)&minutes;
+      {
+        seven_disp01 = ( seven_segment_value *)&hours;
+        seven_disp23 = ( seven_segment_value *)&minutes;
         current_disp = &seven_disp01;
         main_seven_segment.hours_blink = 1;
         main_seven_segment.minutes_blink = 0;
-        prev_time = time(NULL);
-        prev_hours.value = hours.value;
-        prev_minutes.value = minutes.value;
         break;
+      }
 
       case SET_CLOCK_HOUR:
-        seven_disp01 = (volatile seven_segment_value *)&hours;
-        seven_disp23 = (volatile seven_segment_value *)&minutes;
+      {
+        seven_disp01 = ( seven_segment_value *)&hours;
+        seven_disp23 = ( seven_segment_value *)&minutes;
         current_disp = &seven_disp23;
         main_seven_segment.hours_blink = 0;
         main_seven_segment.minutes_blink = 1;
         break;
+      }
 
       case SET_CLOCK_MINUTE:
+      {
         current_disp = &seven_disp01;
         main_seven_segment.hours_blink = 1;
         main_seven_segment.minutes_blink = 0;
-        set_system_time(prev_time + ONE_HOUR * (seven_disp01->value - prev_hours.value) + ONE_MINUTE*(seven_disp23->value-prev_minutes.value));
-        seven_disp23 = (volatile seven_segment_value *)&alarm_minute;
-        seven_disp01 = (volatile seven_segment_value *)&alarm_hour;
+        hours_ = seven_disp01->value;
+        minutes_ = seven_disp23->value;
+        epoch = hours_*ONE_HOUR + minutes_*ONE_MINUTE;
+        seven_disp01 = ( seven_segment_value *)&alarm_hour;
+        seven_disp23 = ( seven_segment_value *)&alarm_minute;
         break;
+      }
 
       case SET_ALARM_HOUR:
-        seven_disp01 = (volatile seven_segment_value *)&alarm_hour;
-        seven_disp23 = (volatile seven_segment_value *)&alarm_minute;
+      {
+        seven_disp01 = ( seven_segment_value *)&alarm_hour;
+        seven_disp23 = ( seven_segment_value *)&alarm_minute;
         current_disp = &seven_disp23;
         main_seven_segment.hours_blink = 0;
         main_seven_segment.minutes_blink = 1;
         break;
+      }
 
       case SET_ALARM_MINUTE:
-        seven_disp01 = (volatile seven_segment_value *)&hours;
-        seven_disp23 = (volatile seven_segment_value *)&minutes;
+      {
+        seven_disp01 = ( seven_segment_value *)&hours;
+        seven_disp23 = ( seven_segment_value *)&minutes;
         current_disp = NULL;
         main_seven_segment.enabled_digits = ALL_DIGITS;
         main_seven_segment.hours_blink = 0;
         main_seven_segment.minutes_blink = 0;
-        // alarm_hour.value = seven_disp01->value;
-        // alarm_minute.value = seven_disp23->value;
         break;
+      }
       }
       set_button_work();
     }
 
     if (programState == NORMAL)
     {
-      current_time = time(NULL);
-      hours.value = localtime(&current_time)->tm_hour;
-      minutes.value = localtime(&current_time)->tm_min;
-      _delay_ms(50);
+      cli();
+      hours.value = hours_;
+      minutes.value = minutes_;
+      sei();
+      _delay_ms(20);
     }
-    _delay_ms(50);
+    _delay_ms(20);
 
     if (current_disp != NULL)
     {
@@ -315,9 +337,13 @@ int main()
           (*current_disp)->value = (*current_disp)->max_value;
       }
     }
+    
+    cli();
     fill_digits(seven_disp01->value, main_seven_segment.values, 2);
     fill_digits(seven_disp23->value, main_seven_segment.values + 2, 2);
-    write_bit(ALARM_PORT, ALARM_PIN, alarm_minute.value == minutes.value && alarm_hour.value == hours.value);
+    sei();
+    
+    write_bit(ALARM_PORT, ALARM_PIN, alarm_minute.value == minutes_ && alarm_hour.value == hours_);
   }
   return 0;
 }
